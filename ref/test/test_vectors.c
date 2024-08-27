@@ -17,7 +17,10 @@ static keccak_state rngstate = {{0x1F, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 
 void randombytes(uint8_t *x,size_t xlen)
 {
+  size_t i;
   shake128_squeeze(x, xlen, &rngstate);
+  for(i=0;i<xlen;i++)
+    printf("%02x",x[i]);
 }
 
 int main(void)
@@ -28,52 +31,50 @@ int main(void)
   uint8_t ct[CRYPTO_CIPHERTEXTBYTES];
   uint8_t key_a[CRYPTO_BYTES];
   uint8_t key_b[CRYPTO_BYTES];
+  uint8_t h[32];
 
+  printf("[\n");
   for(i=0;i<NTESTS;i++) {
+    printf("    {\n");
     // Key-pair generation
+    printf("        \"key_generation_seed\": \"");
     crypto_kem_keypair(pk, sk);
-    printf("Public Key: ");
-    for(j=0;j<CRYPTO_PUBLICKEYBYTES;j++)
-      printf("%02x",pk[j]);
-    printf("\n");
-    printf("Secret Key: ");
-    for(j=0;j<CRYPTO_SECRETKEYBYTES;j++)
-      printf("%02x",sk[j]);
-    printf("\n");
+    printf("\",\n");
+    printf("        \"sha3_256_hash_of_public_key\": \"");
+    sha3_256(h, pk, sizeof(pk));
+    for(j=0;j<sizeof(h);j++)
+      printf("%02x",h[j]);
+    printf("\",\n");
+    printf("        \"sha3_256_hash_of_secret_key\": \"");
+    sha3_256(h, sk, sizeof(sk));
+    for(j=0;j<sizeof(h);j++)
+      printf("%02x",h[j]);
+    printf("\",\n");
 
     // Encapsulation
+    printf("        \"encapsulation_seed\": \"");
     crypto_kem_enc(ct, key_b, pk);
-    printf("Ciphertext: ");
-    for(j=0;j<CRYPTO_CIPHERTEXTBYTES;j++)
-      printf("%02x",ct[j]);
-    printf("\n");
-    printf("Shared Secret B: ");
+    printf("\",\n");
+    printf("        \"sha3_256_hash_of_ciphertext\": \"");
+    sha3_256(h, ct, sizeof(ct));
+    for(j=0;j<sizeof(h);j++)
+      printf("%02x",h[j]);
+    printf("\",\n");
+    printf("        \"shared_secret\": \"");
     for(j=0;j<CRYPTO_BYTES;j++)
       printf("%02x",key_b[j]);
-    printf("\n");
+    printf("\"\n");
 
     // Decapsulation
     crypto_kem_dec(key_a, ct, sk);
-    printf("Shared Secret A: ");
-    for(j=0;j<CRYPTO_BYTES;j++)
-      printf("%02x",key_a[j]);
-    printf("\n");
-
     for(j=0;j<CRYPTO_BYTES;j++) {
       if(key_a[j] != key_b[j]) {
         fprintf(stderr, "ERROR\n");
         return -1;
       }
     }
-
-    // Decapsulation of invalid (random) ciphertexts
-    randombytes(ct, KYBER_CIPHERTEXTBYTES); 
-    crypto_kem_dec(key_a, ct, sk);
-    printf("Pseudorandom shared Secret A: ");
-    for(j=0;j<CRYPTO_BYTES;j++)
-      printf("%02x",key_a[j]);
-    printf("\n");
+    printf("    }%s\n", i == NTESTS-1 ? "" : ",");
   }
-
+  printf("]\n");
   return 0;
 }
